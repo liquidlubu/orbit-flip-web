@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0a12">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Orbit Flip">
+    <meta name="application-name" content="Orbit Flip">
+    <meta name="description" content="A minimalist, high-tension orbital arcade game.">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <title>Orbit Flip</title>
+    <style>
+        :root {
+            --bg-color: #0a0a12;
+            --accent-gold: #ffd700;
+            --accent-red: #ff4d4d;
+            --planet-color: #4a90e2;
+            --text-color: #ffffff;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-color);
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: calc(20px + env(safe-area-inset-top, 0px))
+                     calc(20px + env(safe-area-inset-right, 0px))
+                     calc(20px + env(safe-area-inset-bottom, 0px))
+                     calc(20px + env(safe-area-inset-left, 0px));
+            box-sizing: border-box;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        #pause-btn {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            font-size: 16px;
+            padding: 5px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        #pause-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        #mute-btn {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            font-size: 14px;
+            padding: 3px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            min-width: 36px;
+            min-height: 28px;
+            line-height: 1.2;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            pointer-events: auto;
+            z-index: 10;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #overlay h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: var(--accent-gold);
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        #overlay p {
+            font-size: 18px;
+            margin-bottom: 30px;
+            max-width: 80%;
+            line-height: 1.6;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 20px;
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .btn:hover {
+            background: white;
+            color: black;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .btn { transition: none; }
+        }
+
+        /* ── Leaderboard ── */
+        #leaderboard-section {
+            max-width: 400px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        #leaderboard-title {
+            font-size: 28px;
+            color: var(--accent-gold);
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+            margin-bottom: 12px;
+        }
+
+        #leaderboard-entries {
+            width: 100%;
+            text-align: left;
+        }
+
+        .lb-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 12px;
+            font-size: 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .lb-entry:nth-child(odd) {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .lb-rank {
+            width: 30px;
+            display: inline-block;
+            color: rgba(255,255,255,0.6);
+        }
+
+        .lb-initials {
+            flex: 1;
+            text-align: center;
+            font-weight: bold;
+            letter-spacing: 3px;
+        }
+
+        .lb-score {
+            width: 60px;
+            text-align: right;
+            color: var(--accent-gold);
+        }
+
+        /* ── Initials Entry ── */
+        #initials-section {
+            margin-bottom: 20px;
+        }
+
+        #initials-title {
+            font-size: 28px;
+            color: var(--accent-gold);
+            margin-bottom: 16px;
+        }
+
+        #initials-inputs {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .initial-input {
+            width: 50px;
+            height: 60px;
+            font-size: 32px;
+            text-align: center;
+            text-transform: uppercase;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.4);
+            color: white;
+            border-radius: 8px;
+            outline: none;
+            caret-color: var(--accent-gold);
+            font-family: monospace;
+        }
+
+        .initial-input:focus {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+        }
+
+        /* ── Volume Control ── */
+        #volume-control {
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #volume-control label {
+            font-size: 14px;
+            color: rgba(255,255,255,0.7);
+        }
+
+        #volume-slider {
+            width: 100px;
+            accent-color: var(--accent-gold);
+        }
+
+        /* Safe-area responsive */
+        @media (max-width: 480px) {
+            #overlay h1 { font-size: 36px; }
+            #overlay p { font-size: 16px; }
+            .btn { padding: 12px 30px; font-size: 18px; }
+            #initials-inputs { gap: 8px; }
+            .initial-input { width: 42px; height: 52px; font-size: 26px; }
+            .lb-entry { font-size: 16px; padding: 5px 8px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui-layer">
+        <div class="stats">
+            <div id="score-display">Score: 0</div>
+            <button id="pause-btn" class="hidden" aria-label="Pause game" type="button">PAUSE</button>
+            <button id="mute-btn" class="hidden" aria-label="Toggle sound" aria-pressed="false" type="button">♪</button>
+            <div id="highscore-display">Best: 0</div>
+        </div>
+    </div>
+    <div id="overlay">
+        <!-- Unified UI: single section for START, PAUSED, GAMEOVER -->
+        <div id="start-section">
+            <h1 id="overlay-title">ORBIT FLIP</h1>
+            <p id="overlay-desc">Reverse your orbit to collect golden sparks.<br>Avoid the red comets.<br><br><b>Space, Click, or Tap to Flip.</b></p>
+            <div id="game-over-content" class="hidden">
+                <p>You were struck by a comet!<br>Final Score: <span id="final-score">0</span></p>
+            </div>
+            <button id="start-btn" class="btn" type="button">Start Game</button>
+            <div id="volume-control">
+                <label for="volume-slider">Sound</label>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+            </div>
+        </div>
+
+        <!-- Initials entry (shown if score qualifies for leaderboard) -->
+        <div id="initials-section" class="hidden">
+            <div id="initials-title">NEW HIGH SCORE!</div>
+            <div id="initials-inputs">
+                <input type="text" id="initial-1" maxlength="1" class="initial-input" aria-label="Initial 1" autocomplete="off" inputmode="text" pattern="[A-Z0-9]" />
+                <input type="text" id="initial-2" maxlength="1" class="initial-input" aria-label="Initial 2" autocomplete="off" inputmode="text" pattern="[A-Z0-9]" />
+                <input type="text" id="initial-3" maxlength="1" class="initial-input" aria-label="Initial 3" autocomplete="off" inputmode="text" pattern="[A-Z0-9]" />
+            </div>
+            <button id="initials-submit" class="btn" type="button" style="font-size:16px;padding:10px 30px;">Submit</button>
+        </div>
+
+        <!-- Leaderboard display -->
+        <div id="leaderboard-section" class="hidden">
+            <div id="leaderboard-title">TOP 10</div>
+            <div id="leaderboard-entries"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreDisplay = document.getElementById('score-display');
+    const highscoreDisplay = document.getElementById('highscore-display');
+    const pauseBtn = document.getElementById('pause-btn');
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlayDesc = document.getElementById('overlay-desc');
+    const startBtn = document.getElementById('start-btn');
+    const muteBtn = document.getElementById('mute-btn');
+    const volumeSlider = document.getElementById('volume-slider');
+    const startSection = document.getElementById('start-section');
+    const initialsSection = document.getElementById('initials-section');
+    const leaderboardSection = document.getElementById('leaderboard-section');
+    const leaderboardEntries = document.getElementById('leaderboard-entries');
+    const finalScoreEl = document.getElementById('final-score');
+    const gameOverContent = document.getElementById('game-over-content');
+    const initialsSubmitBtn = document.getElementById('initials-submit');
+
+    // Game State
+    let state = 'START'; // START, PLAYING, GAMEOVER, PAUSED
+    let score = 0;
+    // ── Bounded highscore helpers (wraps legacy storage) ──
+    function _loadHighscore() {
+        try {
+            var raw = localStorage.getItem('orbitFlipHighscore');
+            if (raw === null) return 0;
+            var n = Number(raw);
+            return (Number.isSafeInteger(n) && n >= 0) ? n : 0;
+        } catch(e) { return 0; }
+    }
+    function _saveHighscore(value) {
+        try { localStorage.setItem('orbitFlipHighscore', value); } catch(e) { /* storage error, ignore */ }
+    }
+
+    let highscore = _loadHighscore();
+    let lastTime = 0;
+    let gameTimeMs = 0;  // Master elapsed-time variable (ms) — used for difficulty scaling and timing
+
+    // Config — all gameplay constants are in CSS viewport coordinates
+    const PLANET_RADIUS = 40;
+    const ORBIT_RADIUS = 120;
+    const MOON_RADIUS = 8;
+    const SPARK_RADIUS = 6;
+    const COMET_RADIUS = 10;
+    // Speeds in units-per-second (frame-rate independent)
+    const BASE_ORBIT_SPEED = 2.4; // rad/s
+    const BASE_COMET_SPEED = 120; // px/s (viewport units)
+    const TELEGRAPH_DIST = 200;   // Comets fully visible and dangerous within this range
+    const TELEGRAPH_ZONE = 500;   // Comets appear faintly in this outer zone
+
+    // Spawn rates (per-second, using exponential-CDF accumulator)
+    const SPARK_RATE = 1.0;       // ~1 spark per second on average
+    const COMET_BASE_INTERVAL = 2000; // ms between comet spawns (fair minimum)
+
+    let orbitSpeed = BASE_ORBIT_SPEED;
+    let cometSpeedMultiplier = 1;
+
+    // Entities
+    let moonAngle = 0;
+    let orbitDirection = 1; // 1 clockwise, -1 counter-clockwise
+    let sparks = [];
+    let comets = [];
+    let particles = [];
+
+    // Accumulators for time-based spawning
+    let sparkAccum = 0;        // Probability accumulator for spark spawns
+    let cometTimer = COMET_BASE_INTERVAL; // ms countdown until next comet
+
+    // DPR-aware coordinate helpers
+    // All gameplay entity positions are stored in CSS viewport coords.
+    // DPR backing-store scale is applied only during rendering.
+    let cssWidth = 0;
+    let cssHeight = 0;
+    let dpr = 1;
+
+    function resize() {
+        dpr = window.devicePixelRatio || 1;
+        cssWidth = window.innerWidth;
+        cssHeight = window.innerHeight;
+        canvas.width = cssWidth * dpr;
+        canvas.height = cssHeight * dpr;
+        canvas.style.width = cssWidth + 'px';
+        canvas.style.height = cssHeight + 'px';
+        // Reset transform to identity so we don't accumulate scale across resizes
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    highscoreDisplay.innerText = `Best: ${highscore}`;
+
+    // ── Initials Input Helpers ──
+    var _initialsInputs = [
+        document.getElementById('initial-1'),
+        document.getElementById('initial-2'),
+        document.getElementById('initial-3')
+    ];
+    var _initialsFilled = 0;
+    var _initialsReady = false;
+
+    function _initInitials() {
+        _initialsFilled = 0;
+        _initialsReady = false;
+        _initialsInputs.forEach(function(inp) { inp.value = ''; inp.disabled = false; });
+    }
+
+    function _initInitialListeners() {
+        _initialsInputs.forEach(function(inp, idx) {
+            inp.addEventListener('input', function(e) {
+                var val = (inp.value || '').replace(/[^A-Z0-9]/g, '');
+                inp.value = val.slice(-1);
+                if (val.length > 0) {
+                    _initialsFilled = Math.max(_initialsFilled, idx + 1);
+                    if (idx < 2) {
+                        _initialsInputs[idx + 1].focus();
+                    }
+                }
+            });
+            inp.addEventListener('keydown', function(e) {
+                if (e.code === 'Backspace') {
+                    if (inp.value !== '') {
+                        // Nonempty: let browser default Backspace clear it, keep focus on current input
+                        _initialsFilled = idx;
+                    } else if (idx > 0) {
+                        // Empty and not first: move focus to previous input
+                        e.preventDefault();
+                        _initialsFilled = idx;
+                        _initialsInputs[idx - 1].focus();
+                    }
+                    // idx === 0 empty: no-op (no previous input)
+                } else if (e.code === 'Enter') {
+                    e.preventDefault();
+                    _submitInitials();
+                }
+            });
+            inp.addEventListener('click', function(e) { e.stopPropagation(); });
+            inp.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
+        });
+    }
+    _initInitialListeners();
+
+    // ── Leaderboard System ──
+    var LEADERBOARD_MAX_PERSISTED_ENTRIES = 1000;
+    var LEADERBOARD_FUTURE_SKEW_MS = 5 * 60 * 1000;
+    var __leaderboard = {
+        KEY: 'orbitFlipLeaderboardV1',
+
+        _normalize: function(entries) {
+            if (!Array.isArray(entries)) return [];
+            var valid = [];
+            var latestCreatedAt = Date.now() + LEADERBOARD_FUTURE_SKEW_MS;
+            for (var i = 0; i < entries.length; i++) {
+                var entry = entries[i];
+                if (!entry || typeof entry.initials !== 'string') continue;
+                var normalizedInitials = entry.initials.toUpperCase();
+                if (!/^[A-Z0-9]{3}$/.test(normalizedInitials)) continue;
+                if (!Number.isSafeInteger(entry.score) || entry.score < 0) continue;
+                if (!Number.isSafeInteger(entry.createdAt) || entry.createdAt < 0 || entry.createdAt > latestCreatedAt) continue;
+                valid.push({
+                    initials: normalizedInitials,
+                    score: entry.score,
+                    createdAt: entry.createdAt,
+                    _order: i
+                });
+            }
+            valid.sort(function(a, b) {
+                if (b.score !== a.score) return b.score - a.score;
+                if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+                return a._order - b._order;
+            });
+            return valid.map(function(entry) {
+                return { initials: entry.initials, score: entry.score, createdAt: entry.createdAt };
+            });
+        },
+
+        load: function() {
+            try {
+                var raw = localStorage.getItem(this.KEY);
+                if (!raw) return [];
+                var data = JSON.parse(raw);
+                if (!data || data.version !== 1 || !Array.isArray(data.entries)) return [];
+                if (data.entries.length > LEADERBOARD_MAX_PERSISTED_ENTRIES) return [];
+                return this._normalize(data.entries);
+            } catch(err) {
+                return [];
+            }
+        },
+
+        save: function(entries) {
+            try {
+                localStorage.setItem(this.KEY, JSON.stringify({ version: 1, entries: entries }));
+            } catch(err) { /* storage full, ignore */ }
+        },
+
+        top10: function() {
+            return this.load().slice(0, 10);
+        },
+
+        qualifies: function(scoreVal) {
+            if (!Number.isSafeInteger(scoreVal) || scoreVal < 0) return false;
+            var entries = this.top10();
+            if (entries.length < 10) return true;
+            return scoreVal > entries[9].score;
+        },
+
+        insert: function(initials, scoreVal) {
+            if (typeof initials !== 'string') return;
+            var normalizedInitials = initials.toUpperCase();
+            if (!/^[A-Z0-9]{3}$/.test(normalizedInitials)) return;
+            if (!Number.isSafeInteger(scoreVal) || scoreVal < 0) return;
+            var entries = this.load();
+            entries.push({ initials: normalizedInitials, score: scoreVal, createdAt: Date.now() });
+            this.save(this._normalize(entries).slice(0, 10));
+        },
+
+        migrateLegacy: function() {
+            return _loadHighscore();
+        },
+
+        display: function(containerId) {
+            var container = document.getElementById(containerId);
+            if (!container) return;
+            container.replaceChildren();
+            var entries = this.top10();
+            if (entries.length === 0) return;
+            for (var i = 0; i < entries.length; i++) {
+                var row = document.createElement('div');
+                row.className = 'lb-entry';
+                var rank = document.createElement('span');
+                rank.className = 'lb-rank';
+                rank.textContent = (i + 1) + '.';
+                var init = document.createElement('span');
+                init.className = 'lb-initials';
+                init.textContent = entries[i].initials;
+                var sc = document.createElement('span');
+                sc.className = 'lb-score';
+                sc.textContent = entries[i].score;
+                row.appendChild(rank);
+                row.appendChild(init);
+                row.appendChild(sc);
+                container.appendChild(row);
+            }
+        },
+
+        showLeaderboard: function() {
+            this.display('leaderboard-entries');
+            leaderboardSection.classList.remove('hidden');
+        },
+
+        hideLeaderboard: function() {
+            leaderboardSection.classList.add('hidden');
+        },
+
+        showInitialsEntry: function() {
+            _initInitials();
+            initialsSection.classList.remove('hidden');
+            _initialsInputs[0].focus();
+            _initialsReady = true;
+        },
+
+        hideInitialsEntry: function() {
+            initialsSection.classList.add('hidden');
+            _initialsReady = false;
+        },
+
+        getInitials: function() {
+            return (_initialsInputs[0].value || '') +
+                   (_initialsInputs[1].value || '') +
+                   (_initialsInputs[2].value || '');
+        },
+    };
+
+    function _submitInitials(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        // Validate before any action — must be ready and match exact pattern
+        if (!_initialsReady) return;
+        var initials = __leaderboard.getInitials();
+        if (!/^[A-Z0-9]{3}$/.test(initials)) return;
+
+        // Only play audio after valid submission
+        if (!__audio.isTestMode) {
+            __audio.playStart();
+        }
+        __leaderboard.hideInitialsEntry();
+        __leaderboard.insert(initials, score);
+        __leaderboard.showLeaderboard();
+        // After initials submitted: show leaderboard, show start-btn as TRY AGAIN
+        startSection.classList.remove('hidden');
+        overlayTitle.innerText = 'GAME OVER';
+        overlayDesc.classList.add('hidden');
+        startBtn.innerText = 'TRY AGAIN';
+        startBtn.classList.remove('hidden');
+    }
+
+    initialsSubmitBtn.addEventListener('click', function(e) {
+        _submitInitials(e);
+    });
+
+    // ── Audio System ──
+    var __audio = {
+        ctx: null,
+        muted: false,
+        volume: 1.0,
+        musicGain: null,
+        isInitialized: false,
+        isTestMode: false,
+        _schedulerTimer: null,
+        _nextStepTime: 0,
+        _stepIndex: 0,
+        _musicVoices: new Set(),
+        _sfxVoices: new Set(),
+        PrefsKey: 'orbitFlipAudioV1',
+
+        _syncPrefsUI: function() {
+            if (this.isTestMode) return;
+            volumeSlider.value = String(this.volume);
+            muteBtn.innerText = this.muted ? '✕' : '♪';
+            muteBtn.setAttribute('aria-pressed', this.muted ? 'true' : 'false');
+        },
+
+        init: function() {
+            if (this.isTestMode) return;
+            if (this.isInitialized) return;
+            this.loadPrefs();
+            var localCtx = null;
+            var localGain = null;
+            try {
+                var AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                localCtx = new AudioCtx();
+                localGain = localCtx.createGain();
+                localGain.gain.value = this.muted ? 0 : this.volume * 0.25;
+                localGain.connect(localCtx.destination);
+                this.ctx = localCtx;
+                this.musicGain = localGain;
+                this._musicVoices = new Set();
+                this._sfxVoices = new Set();
+                this._nextStepTime = 0;
+                this._stepIndex = 0;
+                this.isInitialized = true;
+            } catch(e) {
+                if (localGain) {
+                    try { localGain.disconnect(); } catch(disconnectError) {}
+                }
+                if (localCtx) {
+                    try {
+                        var closeResult = localCtx.close();
+                        if (closeResult && typeof closeResult.catch === 'function') closeResult.catch(function() {});
+                    } catch(closeError) {}
+                }
+                this.ctx = null;
+                this.musicGain = null;
+                this._musicVoices = new Set();
+                this._sfxVoices = new Set();
+                this._schedulerTimer = null;
+                this._nextStepTime = 0;
+                this._stepIndex = 0;
+                this.isInitialized = false;
+            }
+        },
+
+        toggleMute: function() {
+            if (this.isTestMode) return;
+            this.muted = !this.muted;
+            this.savePrefs();
+            if (this.musicGain && this.ctx) {
+                this.musicGain.gain.setTargetAtTime(this.muted ? 0 : this.volume * 0.25, this.ctx.currentTime, 0.01);
+            }
+            this._syncPrefsUI();
+        },
+
+        setVolume: function(v) {
+            if (this.isTestMode) return;
+            var vol = Number(v);
+            if (!Number.isFinite(vol)) vol = 1;
+            vol = Math.max(0, Math.min(1, vol));
+            this.volume = vol;
+            this.savePrefs();
+            if (this.musicGain && this.ctx) {
+                this.musicGain.gain.setTargetAtTime(this.muted ? 0 : this.volume * 0.25, this.ctx.currentTime, 0.01);
+            }
+            this._syncPrefsUI();
+        },
+
+        loadPrefs: function() {
+            if (this.isTestMode) return;
+            var muted = false;
+            var volume = 1.0;
+            try {
+                var raw = localStorage.getItem(this.PrefsKey);
+                if (raw) {
+                    var prefs = JSON.parse(raw);
+                    if (prefs && typeof prefs.muted === 'boolean') muted = prefs.muted;
+                    if (prefs && typeof prefs.volume === 'number' && Number.isFinite(prefs.volume) && prefs.volume >= 0 && prefs.volume <= 1) volume = prefs.volume;
+                }
+            } catch(e) {}
+            this.muted = muted;
+            this.volume = volume;
+            this._syncPrefsUI();
+        },
+
+        savePrefs: function() {
+            if (this.isTestMode) return;
+            try {
+                localStorage.setItem(this.PrefsKey, JSON.stringify({ muted: this.muted, volume: this.volume }));
+            } catch(e) {}
+        },
+
+        playNote: function(freq, startTime, duration, type, destination, track) {
+            if (this.isTestMode || !this.ctx || this.ctx.state !== 'running' || !destination) return;
+            var osc = null;
+            var gain = null;
+            var record = null;
+            var self = this;
+            var voices = track === 'music' ? this._musicVoices : this._sfxVoices;
+            try {
+                osc = this.ctx.createOscillator();
+                gain = this.ctx.createGain();
+                record = { osc: osc, gain: gain };
+                osc.type = type || 'square';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.15, startTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration - 0.01);
+                osc.connect(gain);
+                gain.connect(destination);
+                voices.add(record);
+                osc.onended = function() {
+                    try { osc.disconnect(); } catch(e) {}
+                    try { gain.disconnect(); } catch(e) {}
+                    voices.delete(record);
+                };
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+            } catch(e) {
+                if (record) voices.delete(record);
+                if (osc) { try { osc.stop(); } catch(stopError) {} try { osc.disconnect(); } catch(disconnectError) {} }
+                if (gain) { try { gain.disconnect(); } catch(disconnectError) {} }
+            }
+        },
+
+        startMusic: function() {
+            if (this.isTestMode || this._schedulerTimer || !this.ctx || this.ctx.state !== 'running') return;
+            var self = this;
+            var beatDuration = 0.5;
+            var melody = [262, 311, 349, 262, 349, 392, 440, 349, 440, 392, 349, 311, 262, 294, 262, 0];
+            var bass = [131, 0, 131, 0, 196, 0, 196, 0, 220, 0, 175, 0, 131, 0, 147, 0];
+            this._nextStepTime = this.ctx.currentTime;
+            this._stepIndex = 0;
+            function scheduleStep() {
+                if (!self.ctx || self.ctx.state !== 'running') return;
+                var limit = self.ctx.currentTime + 0.2;
+                if (self._nextStepTime <= limit) {
+                    var step = self._stepIndex % melody.length;
+                    if (melody[step]) self.playNote(melody[step], self._nextStepTime, beatDuration * 0.9, 'square', self.musicGain, 'music');
+                    if (bass[step]) self.playNote(bass[step], self._nextStepTime, beatDuration * 0.9, 'triangle', self.musicGain, 'music');
+                    self._nextStepTime += beatDuration;
+                    self._stepIndex++;
+                }
+            }
+            scheduleStep();
+            this._schedulerTimer = setInterval(scheduleStep, 100);
+        },
+
+        stopMusic: function() {
+            if (this.isTestMode) return;
+            if (this._schedulerTimer) {
+                clearInterval(this._schedulerTimer);
+                this._schedulerTimer = null;
+            }
+            this._nextStepTime = 0;
+            this._stepIndex = 0;
+            this._disposeVoices(this._musicVoices);
+        },
+
+        _disposeVoices: function(voices) {
+            if (this.isTestMode) return;
+            voices.forEach(function(record) {
+                try { record.osc.onended = null; } catch(e) {}
+                try { record.osc.stop(); } catch(e) {}
+                try { record.osc.disconnect(); } catch(e) {}
+                try { record.gain.disconnect(); } catch(e) {}
+            });
+            voices.clear();
+        },
+
+        playFlip: function() {
+            if (this.isTestMode || !this.ctx || this.muted) return;
+            var t = this.ctx.currentTime;
+            this.playNote(880, t, 0.08, 'square', this.musicGain, 'sfx');
+            this.playNote(1175, t + 0.04, 0.06, 'square', this.musicGain, 'sfx');
+        },
+
+        playSpark: function() {
+            if (this.isTestMode || !this.ctx || this.muted) return;
+            var t = this.ctx.currentTime;
+            this.playNote(1319, t, 0.12, 'square', this.musicGain, 'sfx');
+            this.playNote(1568, t + 0.05, 0.08, 'square', this.musicGain, 'sfx');
+        },
+
+        playCollision: function() {
+            if (this.isTestMode || !this.ctx || this.muted) return;
+            var t = this.ctx.currentTime;
+            this.playNote(300, t, 0.15, 'sawtooth', this.musicGain, 'sfx');
+            this.playNote(200, t + 0.1, 0.2, 'sawtooth', this.musicGain, 'sfx');
+            this.playNote(150, t + 0.2, 0.3, 'sawtooth', this.musicGain, 'sfx');
+        },
+
+        playStart: function() {
+            if (this.isTestMode || !this.ctx || this.muted) return;
+            var t = this.ctx.currentTime;
+            this.playNote(262, t, 0.12, 'square', this.musicGain, 'sfx');
+            this.playNote(330, t + 0.1, 0.12, 'square', this.musicGain, 'sfx');
+            this.playNote(392, t + 0.2, 0.12, 'square', this.musicGain, 'sfx');
+            this.playNote(523, t + 0.3, 0.25, 'square', this.musicGain, 'sfx');
+        },
+
+        // Comet warning cue (one-shot, called once per comet entering telegraph zone)
+        playCometWarning: function() {
+            if (this.isTestMode || !this.ctx || this.muted) return;
+            var t = this.ctx.currentTime;
+            this.playNote(180, t, 0.1, 'sawtooth', this.musicGain, 'sfx');
+        },
+
+        ensureRunning: function(callback) {
+            if (this.isTestMode) return;
+            this.init();
+            var self = this;
+            if (!this.ctx) return;
+            var onRunning = function() {
+                if (self.ctx && self.ctx.state === 'running' && typeof callback === 'function') callback();
+            };
+            if (this.ctx.state === 'running') {
+                onRunning();
+            } else if (this.ctx.state !== 'closed') {
+                try {
+                    var result = this.ctx.resume();
+                    if (result && typeof result.then === 'function') result.then(onRunning).catch(function() {});
+                    else onRunning();
+                } catch(e) {}
+            }
+        },
+
+        pause: function() {
+            if (this.isTestMode) return;
+            this.stopMusic();
+            this._disposeVoices(this._sfxVoices);
+            if (this.ctx && this.ctx.state === 'running') {
+                try {
+                    var result = this.ctx.suspend();
+                    if (result && typeof result.catch === 'function') result.catch(function() {});
+                } catch(e) {}
+            }
+        },
+
+        resume: function() {
+            if (this.isTestMode) return;
+            var self = this;
+            this.ensureRunning(function() { self.startMusic(); });
+        },
+
+        cleanup: function() {
+            if (this.isTestMode) return;
+            this.stopMusic();
+            this._disposeVoices(this._sfxVoices);
+            var oldCtx = this.ctx;
+            var oldGain = this.musicGain;
+            if (oldGain) { try { oldGain.disconnect(); } catch(e) {} }
+            if (oldCtx) {
+                try {
+                    var result = oldCtx.close();
+                    if (result && typeof result.catch === 'function') result.catch(function() {});
+                } catch(e) {}
+            }
+            this.ctx = null;
+            this.musicGain = null;
+            this._musicVoices = new Set();
+            this._sfxVoices = new Set();
+            this._schedulerTimer = null;
+            this._nextStepTime = 0;
+            this._stepIndex = 0;
+            this.isInitialized = false;
+        },
+
+        handlePageHide: function() {
+            if (this.isTestMode) return;
+            this.cleanup();
+        }
+    };
+
+    // Set test mode flag on audio system
+    (function() {
+        var _detURL = new URLSearchParams(window.location.search);
+        __audio.isTestMode = _detURL.get('orbitTest') === '1';
+    })();
+
+    // ── Mute / Volume UI ──
+    muteBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!__audio.isTestMode) {
+            __audio.toggleMute();
+        }
+    });
+
+    volumeSlider.addEventListener('input', function(e) {
+        e.preventDefault();
+        if (!__audio.isTestMode) {
+            __audio.setVolume(e.target.value);
+        }
+    });
+
+    function _showGameOverUI(scoreVal) {
+        // Hide/reset initials and leaderboard to prevent stale state
+        overlay.classList.remove('hidden');
+        initialsSection.classList.add('hidden');
+        leaderboardSection.classList.add('hidden');
+        _initialsFilled = 0;
+        _initialsReady = false;
+        _initialsInputs.forEach(function(inp) { inp.value = ''; });
+
+        // Show the unified start-section/game-over-content
+        startSection.classList.remove('hidden');
+        overlayTitle.innerText = 'GAME OVER';
+        overlayDesc.classList.add('hidden');
+        gameOverContent.classList.remove('hidden');
+        finalScoreEl.textContent = scoreVal;
+        pauseBtn.classList.add('hidden');
+
+        // Qualifying positive score: initials visible/focused, start-btn hidden
+        if (scoreVal > 0 && __leaderboard.qualifies(scoreVal)) {
+            __leaderboard.showInitialsEntry();
+            startBtn.classList.add('hidden');
+        } else {
+            // Nonqualifying or zero: initials hidden, normalized leaderboard if nonempty, start-btn visible TRY AGAIN
+            initialsSection.classList.add('hidden');
+            var existing = __leaderboard.top10();
+            __leaderboard.display('leaderboard-entries');
+            if (existing.length > 0) {
+                leaderboardSection.classList.remove('hidden');
+            }
+            startBtn.innerText = 'TRY AGAIN';
+            startBtn.classList.remove('hidden');
+        }
+    }
+
+    function _showStartUI() {
+        startSection.classList.remove('hidden');
+        initialsSection.classList.add('hidden');
+        leaderboardSection.classList.add('hidden');
+        startBtn.innerText = 'Start Game';
+        startBtn.classList.remove('hidden');
+        overlayTitle.innerText = 'ORBIT FLIP';
+        overlayDesc.classList.remove('hidden');
+        overlayDesc.innerHTML = 'Reverse your orbit to collect golden sparks.<br>Avoid the red comets.<br><br><b>Space, Click, or Tap to Flip.</b>';
+        gameOverContent.classList.add('hidden');
+        pauseBtn.classList.add('hidden');
+    }
+
+    // Init audio mute state
+    if (!__audio.isTestMode) {
+        __audio.loadPrefs();
+        muteBtn.innerText = __audio.muted ? '✕' : '♪';
+        muteBtn.setAttribute('aria-pressed', __audio.muted ? 'true' : 'false');
+    } else {
+        muteBtn.classList.add('hidden');
+        volumeSlider.parentElement.classList.add('hidden');
+    }
+
+    function initGame() {
+        score = 0;
+        moonAngle = 0;
+        orbitDirection = 1;
+        orbitSpeed = BASE_ORBIT_SPEED;
+        cometSpeedMultiplier = 1;
+        gameTimeMs = 0;
+        sparks = [];
+        comets = [];
+        particles = [];
+        sparkAccum = 0;
+        cometTimer = COMET_BASE_INTERVAL;
+        scoreDisplay.innerText = `Score: 0`;
+    }
+
+    function spawnSpark() {
+        // Spawn in viewport CSS coords
+        var angle = __rand.next() * Math.PI * 2;
+        sparks.push({
+            x: Math.cos(angle) * ORBIT_RADIUS,
+            y: Math.sin(angle) * ORBIT_RADIUS,
+            angle: angle
+        });
+    }
+
+    function spawnComet() {
+        // Spawn far outside the viewport in viewport CSS coords
+        var angle = __rand.next() * Math.PI * 2;
+        const dist = Math.max(cssWidth, cssHeight) * 1.5;
+        comets.push({
+            x: Math.cos(angle) * dist,
+            y: Math.sin(angle) * dist,
+            vx: -Math.cos(angle) * BASE_COMET_SPEED * cometSpeedMultiplier,
+            vy: -Math.sin(angle) * BASE_COMET_SPEED * cometSpeedMultiplier,
+            radius: COMET_RADIUS,
+            warned: false,
+            visible: false,
+            alpha: 0
+        });
+    }
+
+    function createExplosion(x, y, color, count = 10) {
+        for (let i = 0; i < count; i++) {
+            var rv = __rand.next();
+            var rv2 = __rand.next();
+            particles.push({
+                x, y,
+                vx: (rv * 2 - 1) * 5,
+                vy: (rv2 * 2 - 1) * 5,
+                life: 1.0,
+                color: color
+            });
+        }
+    }
+
+    function flipOrbit() {
+        if (state === 'PLAYING') {
+            orbitDirection *= -1;
+            createExplosion(
+                Math.cos(moonAngle) * ORBIT_RADIUS,
+                Math.sin(moonAngle) * ORBIT_RADIUS,
+                '#ffffff', 5
+            );
+            if (!__audio.isTestMode && __audio.isInitialized) {
+                __audio.playFlip();
+            }
+        }
+    }
+
+    function togglePause() {
+        if (state === 'PLAYING') {
+            state = 'PAUSED';
+            pauseBtn.innerText = 'RESUME';
+            pauseBtn.setAttribute('aria-label', 'Resume game');
+            overlay.classList.remove('hidden');
+            startSection.classList.remove('hidden');
+            overlayTitle.innerText = 'PAUSED';
+            overlayDesc.innerHTML = 'Game is paused.<br><br>Click Resume or press P to continue.';
+            startBtn.innerText = 'Resume';
+            if (!__audio.isTestMode) {
+                __audio.pause();
+            }
+        } else if (state === 'PAUSED') {
+            state = 'PLAYING';
+            pauseBtn.innerText = 'PAUSE';
+            pauseBtn.setAttribute('aria-label', 'Pause game');
+            overlay.classList.add('hidden');
+            startSection.classList.add('hidden');
+            initialsSection.classList.add('hidden');
+            leaderboardSection.classList.add('hidden');
+            if (!__audio.isTestMode && __audio.isInitialized) {
+                __audio.resume();
+            }
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            flipOrbit();
+        } else if (e.code === 'KeyP' || e.code === 'Escape') {
+            e.preventDefault();
+            togglePause();
+        }
+    });
+
+    // ── Unified Pointer Input Handler ──
+    // Single pointerdown listener replaces: click-capture preventDefault,
+    // two separate touchstart listeners, and the previous pointerdown handler.
+    // Uses isPrimary to dedup multi-touch: only the first contact triggers.
+    // Uses button === 0 to accept only primary mouse clicks.
+    // Ignored: secondary mouse buttons, non-primary touch/pen, and controls.
+    window.addEventListener('pointerdown', (e) => {
+        if (e.target instanceof Element && e.target.closest('#pause-btn, #overlay, #mute-btn')) return;
+
+        // Ignore non-primary pointers (extra fingers, pen non-primary buttons)
+        if (!e.isPrimary) return;
+
+        // Accept only touch, pen, or primary mouse
+        if (e.pointerType !== 'touch' && e.pointerType !== 'pen' && e.pointerType !== 'mouse') return;
+
+        // For mouse: accept only primary button (0)
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+        if (state === 'PLAYING') {
+            e.preventDefault();
+            flipOrbit();
+        }
+    });
+
+    pauseBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePause();
+    });
+
+    function _handleStartClick() {
+        // Initialize audio on first user gesture
+        if (!__audio.isTestMode) {
+            __audio.init();
+        }
+        if (state === 'PAUSED') {
+            togglePause();
+        } else if (state === 'START' || state === 'GAMEOVER') {
+            initGame();
+            state = 'PLAYING';
+            overlay.classList.add('hidden');
+            startSection.classList.add('hidden');
+            initialsSection.classList.add('hidden');
+            leaderboardSection.classList.add('hidden');
+            pauseBtn.innerText = 'PAUSE';
+            pauseBtn.setAttribute('aria-label', 'Pause game');
+            pauseBtn.classList.remove('hidden');
+            if (!__audio.isTestMode) {
+                muteBtn.classList.remove('hidden');
+                volumeSlider.parentElement.classList.remove('hidden');
+            }
+            if (!__audio.isTestMode && __audio.isInitialized) {
+                // Use ensureRunning to guarantee context is running before cues/music
+                var self = __audio;
+                self.ensureRunning(function() {
+                    self.playStart();
+                    self.startMusic();
+                });
+            }
+        }
+    }
+
+    startBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        _handleStartClick();
+    });
+
+    // Allow viewing leaderboard from overlay by clicking it
+    leaderboardSection.addEventListener('pointerdown', function(e) {
+        e.stopPropagation();
+    });
+
+    // ── Clamp dt to prevent large jumps when returning from background ──
+    const MAX_DT_MS = 250; // ~4 frames at 60fps — generous headroom
+
+    function update(dt) {
+        if (state !== 'PLAYING') return;
+
+        // Clamp dt to prevent simulation explosion on resume
+        const dtClamped = Math.min(dt, MAX_DT_MS);
+        gameTimeMs += dtClamped;
+
+        const dtSeconds = dtClamped / 1000;
+
+        // Gradual difficulty increase based on elapsed game time
+        orbitSpeed = BASE_ORBIT_SPEED + (gameTimeMs / 60000) * 0.02;
+        cometSpeedMultiplier = 1 + (gameTimeMs / 45000);
+
+        // Update moon angle (frame-rate independent)
+        moonAngle += orbitSpeed * orbitDirection * dtSeconds;
+
+        const moonX = Math.cos(moonAngle) * ORBIT_RADIUS;
+        const moonY = Math.sin(moonAngle) * ORBIT_RADIUS;
+
+        // --- Time-based spark spawning (exponential CDF accumulator) ---
+        sparkAccum += dtSeconds * SPARK_RATE;
+        while (sparkAccum >= 1 && sparks.length < 3) {
+            sparkAccum -= 1;
+            spawnSpark();
+        }
+
+        // --- Time-based comet spawning (fixed-interval countdown) ---
+        cometTimer -= dtClamped;
+        if (cometTimer <= 0) {
+            spawnComet();
+            cometTimer = COMET_BASE_INTERVAL;
+        }
+
+        // --- Update Sparks ---
+        for (let i = sparks.length - 1; i >= 0; i--) {
+            const s = sparks[i];
+            const dx = moonX - s.x;
+            const dy = moonY - s.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < MOON_RADIUS + SPARK_RADIUS) {
+                score++;
+                scoreDisplay.innerText = `Score: ${score}`;
+                createExplosion(s.x, s.y, varColor('--accent-gold'));
+                sparks.splice(i, 1);
+                // Play spark sound (not in test mode)
+                if (!__audio.isTestMode && __audio.isInitialized) {
+                    __audio.playSpark();
+                }
+            }
+        }
+
+        // --- Update Comets with swept-segment collision ---
+        for (let i = comets.length - 1; i >= 0; i--) {
+            const c = comets[i];
+            // Save previous position for swept collision
+            const prevX = c.x;
+            const prevY = c.y;
+
+            // Delta-time movement
+            c.x += c.vx * dtSeconds;
+            c.y += c.vy * dtSeconds;
+
+            // Telegraphing: alpha fades IN as comet approaches
+            const distToMoon = Math.sqrt((c.x - moonX) ** 2 + (c.y - moonY) ** 2);
+            if (distToMoon <= TELEGRAPH_DIST) {
+                // Fully visible and dangerous
+                c.visible = true;
+                c.alpha = 1.0;
+            } else if (distToMoon <= TELEGRAPH_ZONE) {
+                // Faint warning — alpha grows as distance shrinks
+                c.visible = true;
+                c.alpha = (TELEGRAPH_ZONE - distToMoon) / (TELEGRAPH_ZONE - TELEGRAPH_DIST) * 0.35;
+            } else {
+                c.visible = false;
+                c.alpha = 0;
+            }
+            if (!c.warned && distToMoon <= TELEGRAPH_ZONE) {
+                c.warned = true;
+                if (!__audio.isTestMode && __audio.isInitialized) __audio.playCometWarning();
+            }
+
+            // Swept segment-vs-circle collision
+            // Segment from (prevX, prevY) to (c.x, c.y), circle at (moonX, moonY) with radius MOON_RADIUS + c.radius
+            const colRadius = MOON_RADIUS + c.radius;
+            if (c.visible) {
+                const dx = c.x - prevX;
+                const dy = c.y - prevY;
+                const segLen = Math.sqrt(dx * dx + dy * dy);
+                const segDx = dx / segLen;
+                const segDy = dy / segLen;
+
+                // Relative vector from segment start to circle center
+                const rx = moonX - prevX;
+                const ry = moonY - prevY;
+
+                // Project circle center onto segment direction
+                const t = rx * segDx + ry * segDy;
+                const tClamped = Math.max(0, Math.min(segLen, t));
+
+                // Closest point on segment to circle center
+                const closestX = prevX + segDx * tClamped;
+                const closestY = prevY + segDy * tClamped;
+
+                const hitDist = Math.sqrt((moonX - closestX) ** 2 + (moonY - closestY) ** 2);
+                if (hitDist < colRadius) {
+                    gameOver();
+                    return;
+                }
+
+                // Also check explicit overlap (sphere-vs-sphere) — safety net
+                const dirDist = Math.sqrt((c.x - moonX) ** 2 + (c.y - moonY) ** 2);
+                if (dirDist < colRadius) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Remove far off-screen comets (in viewport CSS coords)
+            const distFromCenter = Math.sqrt(c.x * c.x + c.y * c.y);
+            if (distFromCenter > Math.max(cssWidth, cssHeight) * 1.5) {
+                comets.splice(i, 1);
+            }
+        }
+
+        // --- Update Particles (frame-rate independent decay) ---
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx * dtSeconds;
+            p.y += p.vy * dtSeconds;
+            p.life -= 1.5 * dtSeconds;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+    }
+
+    function gameOver() {
+        state = 'GAMEOVER';
+
+        // Stop music BEFORE playing game-over sound
+        if (!__audio.isTestMode) {
+            __audio.stopMusic();
+        }
+
+        // Collision is the combined collision/game-over cue.
+        if (!__audio.isTestMode && __audio.isInitialized) {
+            __audio.playCollision();
+        }
+
+        // Safely update highscore using helper
+        try {
+            if (score > highscore) {
+                highscore = score;
+                _saveHighscore(highscore);
+                highscoreDisplay.innerText = `Best: ${highscore}`;
+            }
+        } catch(e) {}
+
+        // Delegate all game-over UI composition to the single composer.
+        _showGameOverUI(score);
+    }
+
+    function varColor(varName) {
+        return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        // Translate to center, in DPR-scaled coords
+        ctx.translate(cssWidth / 2, cssHeight / 2);
+
+        // Planet
+        const planetGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, PLANET_RADIUS);
+        planetGrad.addColorStop(0, '#6ba5ff');
+        planetGrad.addColorStop(1, '#2a5298');
+        ctx.fillStyle = planetGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, PLANET_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#4a90e2';
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Orbit Path
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, ORBIT_RADIUS, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Moon
+        const moonX = Math.cos(moonAngle) * ORBIT_RADIUS;
+        const moonY = Math.sin(moonAngle) * ORBIT_RADIUS;
+        ctx.fillStyle = '#eee';
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, MOON_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+        // Moon glow
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#fff';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Sparks
+        ctx.fillStyle = varColor('--accent-gold');
+        sparks.forEach(s => {
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, SPARK_RADIUS, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Comets
+        comets.forEach(c => {
+            if (!c.visible) return;
+            ctx.save();
+            ctx.globalAlpha = c.alpha;
+            ctx.fillStyle = varColor('--accent-red');
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
+            ctx.fill();
+            // Comet Tail
+            ctx.strokeStyle = varColor('--accent-red');
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(c.x, c.y);
+            ctx.lineTo(c.x - c.vx * 5, c.y - c.vy * 5);
+            ctx.stroke();
+            ctx.restore();
+        });
+
+        // Particles
+        particles.forEach(p => {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, 2, 2);
+        });
+        ctx.globalAlpha = 1.0;
+
+        ctx.restore();
+    }
+
+    // ── iOS native lifecycle bridge (sceneWillResignActive / sceneDidBecomeActive) ──
+    // These handlers are called by SceneDelegate so the HTML game can pause
+    // on background with full UI feedback and refuse unexpected resume.
+    // Also kept as a fallback when running in a regular browser without
+    // the native SceneDelegate.
+    window.__orbitFlipBridge = {
+        pause: function() {
+            if (state === 'PLAYING') {
+                // Use the same UI-consistent pause path as manual pause:
+                // visible PAUSED overlay, Start button reads "Resume",
+                // pause button reads "RESUME", and reset lastTime so
+                // foreground cannot spike dt on resume.
+                state = 'PAUSED';
+                pauseBtn.innerText = 'RESUME';
+                pauseBtn.setAttribute('aria-label', 'Resume game');
+                overlay.classList.remove('hidden');
+                startSection.classList.remove('hidden');
+                startBtn.innerText = 'Resume';
+                overlayTitle.innerText = 'PAUSED';
+                overlayDesc.innerHTML = 'Game is paused.<br><br>Click Resume or press P to continue.';
+                scoreDisplay.innerText = 'Score: ' + score;
+                lastTime = 0;
+                if (!__audio.isTestMode) {
+                    __audio.pause();
+                }
+            }
+        },
+        resume: function() {
+            // Do NOT auto-resume. Require explicit player action (start
+            // button or pause button) to return to PLAYING.
+            // This prevents simulation advancement during background→foreground.
+            // The game stays PAUSED until the player taps Start.
+        }
+    };
+
+    // ── Fallback: visibilitychange for non-native-browser contexts ──
+    // When running outside the iOS native bridge, the visibilitychange
+    // listener fires when the browser tab is hidden (e.g., user switches
+    // apps or tabs). Delegate to the bridge so behavior is consistent.
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && state === 'PLAYING') {
+            __orbitFlipBridge.pause();
+        }
+    });
+
+    // Page hide: clean up audio
+    window.addEventListener('pagehide', function() { __audio.cleanup(); });
+
+    // ── Bounded Test Scheduler Seam ──
+    // Strict test mode: only true when URL parameter is exactly `orbitTest=1`.
+    // `?orbitTest=0`, bare `?orbitTest`, and no flag → false.
+    var _detURL = new URLSearchParams(window.location.search);
+    var isTestMode = _detURL.get('orbitTest') === '1';
+
+    function loop(timestamp) {
+        const dt = lastTime > 0 ? timestamp - lastTime : 0;
+        lastTime = timestamp;
+
+        if (!isTestMode) update(dt || 0);
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+
+    // ── Randomness Provider ──
+    // Production: Math.random. Test mode: seeded Mulberry32 PRNG.
+    // Seed is set via __det.setSeed() when test-mode is active.
+    var _detEnabled = false;
+    var _detSeed = 0;
+    var _detRngState = 0;
+    function _detMulberry32() {
+      var t = _detSeed += 0x6D2B79F5;
+      t = (t ^ (t >>> 15)) * (t | 1);
+      t ^= t + ((t ^ (t >>> 7)) * (t | 61));
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+    var __rand = {
+      next: function() { return _detEnabled ? _detMulberry32() : Math.random(); }
+    };
+
+
+    // ── Deterministic Test Hooks (Phase 2) ──
+    // Bounded interfaces only — no arbitrary execution.
+    // Gated behind ?orbitTest=1 URL parameter. Production (no flag)
+    // must leave window.__det undefined.
+    (function() {
+      // Mulberry32 PRNG (bounded, seeded, deterministic)
+      var _detH = 0;
+      function _detSetSeed(s) {
+        _detH = s | 0;
+        // Also enable the randomness provider
+        _detEnabled = true;
+        _detSeed = s | 0;
+        // Reset time and collections for deterministic replay
+        gameTimeMs = 0;
+        score = 0;
+        orbitDirection = 1;
+        orbitSpeed = BASE_ORBIT_SPEED;
+        cometSpeedMultiplier = 1;
+        comets = [];
+        particles = [];
+        sparks = [];
+        sparkAccum = 0;
+        cometTimer = COMET_BASE_INTERVAL;
+        moonAngle = 0;
+      }
+      function _detRNG() {
+        var t = _detH += 0x6D2B79F5;
+        t = (t ^ t >>> 15) * (t | 1);
+        t ^= t + (t ^ t >>> 7) * (t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      }
+
+      // FNV-1a 32-bit hash of a serializable snapshot
+      function _detFNV1a(str) {
+        var h = 2166136261 >>> 0;
+        for (var i = 0; i < str.length; i++) {
+          h ^= str.charCodeAt(i);
+          h = (h * 16777619) >>> 0;
+        }
+        return (h >>> 0).toString(16).padStart(8, '0');
+      }
+
+      // State snapshot (rounded coords for stable hashing)
+      function detStateHash() {
+        var snap = {
+          st: state, sc: score, gm: Math.round(gameTimeMs),
+          ma: Math.round(moonAngle * 1e6), od: orbitDirection,
+          sp: sparks.map(function(x){return [Math.round(x.x*100),Math.round(x.y*100)]}),
+          cm: comets.map(function(x){return [Math.round(x.x*100),Math.round(x.y*100),Math.round(x.vx*100),Math.round(x.vy*100)]}),
+          pt: particles.map(function(x){return [Math.round(x.x*100),Math.round(x.y*100)]})
+        };
+        return _detFNV1a(JSON.stringify(snap));
+      }
+
+      // Recording snapshots
+      var _detSnaps = [];
+      function detSnapshot() {
+        var s = {
+          step: _detSnaps.length,
+          st: state, sc: score, gm: Math.round(gameTimeMs),
+          maDeg: Math.round(moonAngle*180/Math.PI*1e6)/1e6,
+          od: orbitDirection,
+          sp: sparks.length, cm: comets.length, pt: particles.length,
+          hash: detStateHash()
+        };
+        _detSnaps.push(s);
+        return s;
+      }
+
+      // Input sequence (for deterministic replay)
+      var _detInputs = [];
+      var _detInputIdx = 0;
+      function detSetInputs(seq) { _detInputs = seq; _detInputIdx = 0; }
+      function detNextInput() {
+        return _detInputIdx < _detInputs.length ? _detInputs[_detInputIdx++] : null;
+      }
+
+      // Batch frame advance (returns summary)
+      function detAdvance(n, dt) {
+        dt = dt || 16.67;
+        var done = 0;
+        for (var i = 0; i < n && state === 'PLAYING'; i++) {
+          update(dt);
+          done++;
+        }
+        return { run: done, endState: state, hash: detStateHash() };
+      }
+
+      // Expose window.__det only when strict test mode is active (isTestMode)
+      // Reuse the same boolean defined above — no URLSearchParams.has() here.
+      if (isTestMode) {
+        window.__det = {
+          setSeed: _detSetSeed,
+          rng: _detRNG,
+          hashState: detStateHash,
+          snapshot: detSnapshot,
+          getSnapshots: function(){ return _detSnaps.slice(); },
+          resetSnapshots: function(){ _detSnaps = []; },
+          setInputSequence: detSetInputs,
+          nextInput: detNextInput,
+          advance: detAdvance
+        };
+      }
+    })();
+</script>
+<script>
+    const canUseServiceWorker = location.protocol === 'https:' ||
+        location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (canUseServiceWorker && 'serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('./service-worker.js').catch(function (error) {
+                console.warn('Orbit Flip offline installation is unavailable:', error);
+            });
+        });
+    }
+</script>
+</body>
+</html>
