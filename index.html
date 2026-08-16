@@ -224,7 +224,15 @@
         #initials-title {
             font-size: 28px;
             color: var(--accent-gold);
-            margin-bottom: 16px;
+            margin-bottom: 8px;
+        }
+
+        #initials-prompt {
+            max-width: 360px;
+            margin: 0 auto 14px;
+            color: rgba(255,255,255,0.9);
+            font-size: 16px;
+            line-height: 1.35;
         }
 
         #initials-inputs {
@@ -252,6 +260,23 @@
         .initial-input:focus {
             border-color: var(--accent-gold);
             box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+        }
+
+        #initials-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        #initials-actions .btn {
+            font-size: 16px;
+            padding: 10px 22px;
+        }
+
+        #initials-skip {
+            color: rgba(255,255,255,0.9);
+            border-color: rgba(255,255,255,0.45);
         }
 
         /* ── Volume Control ── */
@@ -313,12 +338,16 @@
         <!-- Initials entry (shown if score qualifies for leaderboard) -->
         <div id="initials-section" class="hidden">
             <div id="initials-title">NEW HIGH SCORE!</div>
+            <p id="initials-prompt">Enter 3 initials in the boxes to save your score, or skip to play again.</p>
             <div id="initials-inputs">
                 <input type="text" id="initial-1" maxlength="1" class="initial-input" aria-label="Initial 1" autocomplete="off" inputmode="text" pattern="[A-Z0-9]" />
                 <input type="text" id="initial-2" maxlength="1" class="initial-input" aria-label="Initial 2" autocomplete="off" inputmode="text" pattern="[A-Z0-9]" />
                 <input type="text" id="initial-3" maxlength="1" class="initial-input" aria-label="Initial 3" autocomplete="off" inputmode="text" pattern="[A-Z0-9]" />
             </div>
-            <button id="initials-submit" class="btn" type="button" style="font-size:16px;padding:10px 30px;">Submit</button>
+            <div id="initials-actions">
+                <button id="initials-submit" class="btn" type="button">Save Score</button>
+                <button id="initials-skip" class="btn" type="button">Skip &amp; Play Again</button>
+            </div>
         </div>
 
         <!-- Leaderboard display -->
@@ -348,6 +377,7 @@
     const finalScoreEl = document.getElementById('final-score');
     const gameOverContent = document.getElementById('game-over-content');
     const initialsSubmitBtn = document.getElementById('initials-submit');
+    const initialsSkipBtn = document.getElementById('initials-skip');
 
     // Game State
     let state = 'START'; // START, PLAYING, GAMEOVER, PAUSED
@@ -631,6 +661,14 @@
 
     initialsSubmitBtn.addEventListener('click', function(e) {
         _submitInitials(e);
+    });
+
+    initialsSkipBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!_initialsReady || state !== 'GAMEOVER') return;
+        __leaderboard.hideInitialsEntry();
+        _handleStartClick();
     });
 
     // ── Audio System ──
