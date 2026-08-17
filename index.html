@@ -373,6 +373,7 @@
     const startSection = document.getElementById('start-section');
     const initialsSection = document.getElementById('initials-section');
     const leaderboardSection = document.getElementById('leaderboard-section');
+    const leaderboardTitle = document.getElementById('leaderboard-title');
     const leaderboardEntries = document.getElementById('leaderboard-entries');
     const finalScoreEl = document.getElementById('final-score');
     const gameOverContent = document.getElementById('game-over-content');
@@ -581,11 +582,11 @@
             return _loadHighscore();
         },
 
-        display: function(containerId) {
+        displayEntries: function(containerId, sourceEntries) {
             var container = document.getElementById(containerId);
             if (!container) return;
             container.replaceChildren();
-            var entries = this.top10();
+            var entries = this._normalize(sourceEntries).slice(0, 10);
             if (entries.length === 0) return;
             for (var i = 0; i < entries.length; i++) {
                 var row = document.createElement('div');
@@ -604,6 +605,10 @@
                 row.appendChild(sc);
                 container.appendChild(row);
             }
+        },
+
+        display: function(containerId) {
+            this.displayEntries(containerId, this.top10());
         },
 
         showLeaderboard: function() {
@@ -634,6 +639,163 @@
         },
     };
 
+    // ── Shared Global Leaderboard ──
+    var GLOBAL_LEADERBOARD_URL = 'https://orbit-flip-leaderboard.six-path-eyes.workers.dev';
+    var _globalLeaderboardParams = new URLSearchParams(window.location.search);
+    var __globalLeaderboard = {
+        PLAYER_KEY: 'orbitFlipGlobalPlayerV1',
+        enabled: _globalLeaderboardParams.get('orbitGlobal') !== 'off',
+        loaded: false,
+        entries: [],
+        // Fix #2: stable in-memory UUID when localStorage throws
+        _playerIdCache: null,
+        // Fix #1: generation counter to discard stale async responses
+        _submitGen: 0,
+
+        _playerId: function() {
+            // Return cached value first (stable across localStorage failures)
+            if (this._playerIdCache) return this._playerIdCache;
+            var existing = '';
+            try { existing = localStorage.getItem(this.PLAYER_KEY) || ''; } catch(e) {}
+            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existing)) {
+                this._playerIdCache = existing.toLowerCase();
+                return this._playerIdCache;
+            }
+            var created = '';
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                created = window.crypto.randomUUID();
+            } else {
+                var bytes = new Uint8Array(16);
+                window.crypto.getRandomValues(bytes);
+                bytes[6] = (bytes[6] & 15) | 64;
+                bytes[8] = (bytes[8] & 63) | 128;
+                var hex = Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+                created = hex.slice(0,8) + '-' + hex.slice(8,12) + '-' + hex.slice(12,16) + '-' + hex.slice(16,20) + '-' + hex.slice(20);
+            }
+            // Store in cache (even if localStorage throws) so identity is stable
+            this._playerIdCache = created;
+            try { localStorage.setItem(this.PLAYER_KEY, created); } catch(e) {}
+            return this._playerIdCache;
+        },
+
+        _request: async function(path, options, timeoutMs) {
+            var controller = new AbortController();
+            var timer = setTimeout(function() { controller.abort(); }, timeoutMs || 4000);
+            try {
+                return await fetch(GLOBAL_LEADERBOARD_URL + path, Object.assign({}, options || {}, {
+                    signal: controller.signal,
+                    cache: 'no-store'
+                }));
+            } finally {
+                clearTimeout(timer);
+            }
+        },
+
+        // ---- Stale-response guards ----
+        // Returns true if gen is still current; callers must abort any
+        // further state/DOM mutation when it returns false.
+        _isCurrentGen: function(gen) { return gen === this._submitGen; },
+
+        // Advance the generation counter, discarding any in-flight async
+        // work from prior games, skips, or replays.
+        _invalidatePending: function() { ++this._submitGen; },
+
+        _acceptEntries: function(entries, currentGen) {
+            // Guard: reject stale responses silently. An undefined generation
+            // means the caller is not generation-scoped (e.g. the startup
+            // load), so no generation check applies — mirroring load().
+            if (currentGen !== undefined && !this._isCurrentGen(currentGen)) return null;
+            // Defect 3: only accept valid arrays; non-array → signal failure
+            if (!Array.isArray(entries)) return null;
+            var normalized = __leaderboard._normalize(entries);
+            this.entries = normalized.slice(0, 10);
+            this.loaded = true;
+            return this.entries;
+        },
+
+        render: function(entries, scope) {
+            var normalized = __leaderboard._normalize(entries).slice(0, 10);
+            leaderboardTitle.textContent = scope === 'global' ? 'GLOBAL TOP 10' : 'LOCAL TOP 10';
+            __leaderboard.displayEntries('leaderboard-entries', normalized);
+            leaderboardSection.classList.toggle('hidden', normalized.length === 0);
+        },
+
+        load: async function(currentGen) {
+            if (!this.enabled) return null;
+            try {
+                var response = await this._request('/v1/leaderboard', { method: 'GET' }, 4000);
+                if (!response.ok) throw new Error('leaderboard HTTP ' + response.status);
+                var data = await response.json();
+                // currentGen is optional: when provided, reject stale responses.
+                if (currentGen !== undefined && !this._isCurrentGen(currentGen)) return null;
+                return this._acceptEntries(data.entries, currentGen);
+            } catch(error) {
+                return null;
+            }
+        },
+
+        qualifies: function(scoreVal) {
+            if (!Number.isSafeInteger(scoreVal) || scoreVal <= 0) return false;
+            var entries = this.loaded ? this.entries : __leaderboard.top10();
+            return entries.length < 10 || scoreVal > entries[entries.length - 1].score;
+        },
+
+        showLatest: function() {
+            var self = this;
+            if (this.loaded) this.render(this.entries, 'global');
+            else this.render(__leaderboard.top10(), 'local');
+            this.load().then(function(entries) {
+                if (entries) self.render(entries, 'global');
+            });
+        },
+
+        submit: async function(initials, scoreVal) {
+            if (!this.enabled) return false;
+            // Capture generation to discard stale async responses.
+            var myGen = ++this._submitGen;
+            try {
+                var response = await this._request('/v1/scores', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        playerId: this._playerId(),
+                        initials: initials,
+                        score: scoreVal
+                    })
+                }, 5000);
+                // Stale-generation guard BEFORE any state mutation.
+                if (!this._isCurrentGen(myGen)) return false;
+                if (response.status === 429) {
+                    // Only load/render if this submission is still current.
+                    var current = await this.load(myGen);
+                    if (current) this.render(current, 'global');
+                    return false;
+                }
+                if (!response.ok) throw new Error('submission HTTP ' + response.status);
+                var data = await response.json();
+                // Stale-generation guard BEFORE _acceptEntries.
+                if (!this._isCurrentGen(myGen)) return false;
+                // Defect 3: _acceptEntries now validates entries without mutating
+                // state until generation is confirmed via the currentGen param.
+                var entries = this._acceptEntries(data.entries, myGen);
+                if (!entries || entries.length === 0) {
+                    this.render(__leaderboard.top10(), 'local');
+                    return false;
+                }
+                this.render(entries, 'global');
+                return true;
+            } catch(error) {
+                // Only render fallback on stale generation.
+                if (this._isCurrentGen(myGen)) {
+                    this.render(__leaderboard.top10(), 'local');
+                }
+                return false;
+            }
+        }
+    };
+
+    if (__globalLeaderboard.enabled) __globalLeaderboard.load();
+
     function _submitInitials(e) {
         if (e) {
             e.preventDefault();
@@ -650,7 +812,8 @@
         }
         __leaderboard.hideInitialsEntry();
         __leaderboard.insert(initials, score);
-        __leaderboard.showLeaderboard();
+        __globalLeaderboard.render(__leaderboard.top10(), 'local');
+        __globalLeaderboard.submit(initials, score);
         // After initials submitted: show leaderboard, show start-btn as TRY AGAIN
         startSection.classList.remove('hidden');
         overlayTitle.innerText = 'GAME OVER';
@@ -668,6 +831,8 @@
         e.stopPropagation();
         if (!_initialsReady || state !== 'GAMEOVER') return;
         __leaderboard.hideInitialsEntry();
+        // Invalidate any in-flight global leaderboard submissions.
+        if (__globalLeaderboard.enabled) __globalLeaderboard._invalidatePending();
         _handleStartClick();
     });
 
@@ -1002,17 +1167,13 @@
         pauseBtn.classList.add('hidden');
 
         // Qualifying positive score: initials visible/focused, start-btn hidden
-        if (scoreVal > 0 && __leaderboard.qualifies(scoreVal)) {
+        if (scoreVal > 0 && __globalLeaderboard.qualifies(scoreVal)) {
             __leaderboard.showInitialsEntry();
             startBtn.classList.add('hidden');
         } else {
-            // Nonqualifying or zero: initials hidden, normalized leaderboard if nonempty, start-btn visible TRY AGAIN
+            // Nonqualifying or zero: initials hidden, latest global board with local offline fallback.
             initialsSection.classList.add('hidden');
-            var existing = __leaderboard.top10();
-            __leaderboard.display('leaderboard-entries');
-            if (existing.length > 0) {
-                leaderboardSection.classList.remove('hidden');
-            }
+            __globalLeaderboard.showLatest();
             startBtn.innerText = 'TRY AGAIN';
             startBtn.classList.remove('hidden');
         }
@@ -1178,6 +1339,8 @@
     });
 
     function _handleStartClick() {
+        // Invalidate any in-flight global leaderboard submissions.
+        if (__globalLeaderboard.enabled) __globalLeaderboard._invalidatePending();
         // Initialize audio on first user gesture
         if (!__audio.isTestMode) {
             __audio.init();
